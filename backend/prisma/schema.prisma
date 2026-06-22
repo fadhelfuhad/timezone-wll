@@ -1,0 +1,209 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  STAFF
+}
+
+enum FileType {
+  PDF
+  IMAGE
+  EXCEL
+  CSV
+  CAMERA
+}
+
+enum ImportStatus {
+  PENDING
+  PROCESSING
+  PREVIEW
+  APPROVED
+  FAILED
+}
+
+enum RowStatus {
+  PENDING
+  PARSED
+  ERROR
+  APPROVED
+  SKIPPED
+}
+
+enum ImportMode {
+  APPEND
+  REPLACE
+}
+
+enum ConflictResolution {
+  KEEP_EXISTING
+  USE_IMPORTED
+  MERGE
+  CREATE_NEW
+  SKIP
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  IMPORT
+  LOGIN
+  LOGOUT
+}
+
+// ─── Models ───────────────────────────────────────────────────────────────────
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  firstName String
+  lastName  String
+  role      Role
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  inventoryItems         InventoryItem[] @relation("CreatedByUser")
+  updatedInventoryItems  InventoryItem[] @relation("UpdatedByUser")
+  auditLogs              AuditLog[]
+  imports                InventoryImport[]
+
+  @@map("users")
+}
+
+model InventoryItem {
+  id           String    @id @default(uuid())
+  description  String
+  brand        String
+  model        String
+  sku          String?   @unique
+  serialNumber String?
+  quantity     Int       @default(1)
+  costPrice    Decimal   @db.Decimal(12, 3)
+  salePrice    Decimal   @db.Decimal(12, 3)
+  totalCost    Decimal   @db.Decimal(12, 3)
+  totalSale    Decimal   @db.Decimal(12, 3)
+  profit       Decimal   @db.Decimal(12, 3)
+  margin       Decimal   @db.Decimal(8, 4)
+  dateAdded    DateTime  @default(now())
+  supplier     String?
+  notes        String?   @db.Text
+  createdById  String
+  updatedById  String?
+  importId     String?
+  isDeleted    Boolean   @default(false)
+  deletedAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // Relations
+  createdBy User            @relation("CreatedByUser", fields: [createdById], references: [id])
+  updatedBy User?           @relation("UpdatedByUser", fields: [updatedById], references: [id])
+  import    InventoryImport? @relation(fields: [importId], references: [id])
+  auditLogs AuditLog[]
+
+  // Indexes
+  @@index([brand])
+  @@index([model])
+  @@index([sku])
+  @@index([dateAdded])
+  @@index([createdAt])
+  @@index([isDeleted])
+  @@index([brand, isDeleted])
+
+  @@map("inventory_items")
+}
+
+model InventoryImport {
+  id                 String       @id @default(uuid())
+  filename           String
+  originalName       String
+  fileType           FileType
+  fileSize           Int?
+  filePath           String?
+  status             ImportStatus
+  importMode         ImportMode   @default(APPEND)
+  ocrConfidence      Float?
+  totalRows          Int          @default(0)
+  processedRows      Int          @default(0)
+  failedRows         Int          @default(0)
+  skippedRows        Int          @default(0)
+  conflictsDetected  Int          @default(0)
+  conflictsResolved  Int          @default(0)
+  errorMessage       String?
+  extractedData      Json?
+  importReport       Json?
+  backupSnapshot     Json?
+  createdById        String
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  // Relations
+  createdBy  User                 @relation(fields: [createdById], references: [id])
+  items      InventoryItem[]
+  importRows InventoryImportRow[]
+
+  @@map("inventory_imports")
+}
+
+model InventoryImportRow {
+  id               String              @id @default(uuid())
+  importId         String
+  rowNumber        Int
+  rawData          Json
+  parsedData       Json?
+  confidence       Float?
+  status           RowStatus
+  errorMessage     String?
+  conflictData     Json?
+  resolution       ConflictResolution?
+  resolvedData     Json?
+  createdAt        DateTime            @default(now())
+
+  // Relations
+  import InventoryImport @relation(fields: [importId], references: [id])
+
+  // Indexes
+  @@index([importId])
+
+  @@map("inventory_import_rows")
+}
+
+model AuditLog {
+  id          String      @id @default(uuid())
+  action      AuditAction
+  entityType  String
+  entityId    String?
+  description String?
+  oldValues   Json?
+  newValues   Json?
+  ipAddress   String?
+  userAgent   String?
+  userId      String
+  itemId      String?
+  createdAt   DateTime    @default(now())
+
+  // Relations
+  user User           @relation(fields: [userId], references: [id])
+  item InventoryItem? @relation(fields: [itemId], references: [id])
+
+  // Indexes
+  @@index([userId])
+  @@index([entityType])
+  @@index([entityId])
+  @@index([createdAt])
+
+  @@map("audit_logs")
+}
