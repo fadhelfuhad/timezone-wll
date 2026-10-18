@@ -16,3 +16,13 @@ export function refreshToken(refreshToken: string): Promise<AuthTokens> {
 export function getProfile(): Promise<User> {
   return get<User>('/auth/profile');
 }
+
+export function changePassword(
+  currentPassword: string,
+  newPassword: string,
+): Promise<{ message: string }> {
+  return post<{ message: string }>('/auth/change-password', {
+    currentPassword,
+    newPassword,
+  });
+}

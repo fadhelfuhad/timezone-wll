@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { AuditAction } from '@prisma/client';
@@ -9,7 +9,10 @@ import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
 import type { AppConfig } from '../config/configuration';
 import type { LoginDto } from './dto/login.dto';
+import type { ChangePasswordDto } from './dto/change-password.dto';
 import type { JwtPayload } from './strategies/jwt.strategy';
+
+const BCRYPT_ROUNDS = 10;
 
 type UserWithoutPassword = Omit<User, 'password'>;
 
@@ -103,6 +106,48 @@ export class AuthService {
     }
 
     return user;
+  }
+
+  async changePassword(
+    userId: string,
+    dto: ChangePasswordDto,
+  ): Promise<{ message: string }> {
+    const user = await this.usersService.findById(userId);
+
+    if (!user || !user.isActive) {
+      throw new UnauthorizedException('User not found or inactive');
+    }
+
+    const currentValid = await bcrypt.compare(dto.currentPassword, user.password);
+    if (!currentValid) {
+      throw new BadRequestException('Current password is incorrect');
+    }
+
+    const sameAsOld = await bcrypt.compare(dto.newPassword, user.password);
+    if (sameAsOld) {
+      throw new BadRequestException(
+        'New password must be different from the current password',
+      );
+    }
+
+    const hashed = await bcrypt.hash(dto.newPassword, BCRYPT_ROUNDS);
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { password: hashed },
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        action: AuditAction.UPDATE,
+        entityType: 'User',
+        entityId: userId,
+        description: `User ${user.email} changed their password`,
+        userId,
+      },
+    });
+
+    return { message: 'Password changed successfully' };
   }
 
   async getProfile(userId: string): Promise<UserWithoutPassword> {

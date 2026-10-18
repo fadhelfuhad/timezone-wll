@@ -17,9 +17,9 @@ import MenuIcon from '@mui/icons-material/Menu';
 import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
 import PersonIcon from '@mui/icons-material/Person';
 import WatchIcon from '@mui/icons-material/Watch';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useColorMode } from '../../contexts/ColorModeContext';
+import ProfileSettingsDialog from '../profile/ProfileSettingsDialog';
 
 interface CustomAppBarProps {
   onMenuToggle: () => void;
@@ -29,9 +29,9 @@ interface CustomAppBarProps {
 
 export default function CustomAppBar({ onMenuToggle, drawerWidth, isMobile }: CustomAppBarProps) {
   const { user, logout } = useAuth();
-  const navigate = useNavigate();
   const { colorMode, toggleColorMode } = useColorMode();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [profileOpen, setProfileOpen] = useState(false);
 
   const initials = user ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase() : '?';
   const displayName = user ? `${user.firstName} ${user.lastName}` : 'Guest';
@@ -44,7 +44,7 @@ export default function CustomAppBar({ onMenuToggle, drawerWidth, isMobile }: Cu
 
   const handleProfile = () => {
     handleMenuClose();
-    navigate('/dashboard');
+    setProfileOpen(true);
   };
 
   const handleLogout = async () => {
@@ -53,6 +53,7 @@ export default function CustomAppBar({ onMenuToggle, drawerWidth, isMobile }: Cu
   };
 
   return (
+    <>
     <AppBar
       position="fixed"
       sx={{
@@ -156,7 +157,7 @@ export default function CustomAppBar({ onMenuToggle, drawerWidth, isMobile }: Cu
             <ListItemIcon>
               <PersonIcon fontSize="small" />
             </ListItemIcon>
-            Profile
+            Profile Settings
           </MenuItem>
           <MenuItem onClick={handleLogout} sx={{ color: 'error.main' }}>
             <ListItemIcon>
@@ -167,5 +168,7 @@ export default function CustomAppBar({ onMenuToggle, drawerWidth, isMobile }: Cu
         </Menu>
       </Toolbar>
     </AppBar>
+    <ProfileSettingsDialog open={profileOpen} onClose={() => setProfileOpen(false)} />
+    </>
   );
 }
