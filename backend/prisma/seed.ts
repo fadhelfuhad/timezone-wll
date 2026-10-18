@@ -267,8 +267,12 @@ async function main() {
   console.log("Creating users...");
   const SALT_ROUNDS = 10;
 
-  const adminPassword = await bcrypt.hash("Admin@123456", SALT_ROUNDS);
-  const staffPassword = await bcrypt.hash("Staff@123456", SALT_ROUNDS);
+  // Passwords come from env in production (set to strong random values) and
+  // fall back to the documented local defaults for development seeding.
+  const adminPlain = process.env["SEED_ADMIN_PASSWORD"] ?? "Admin@123456";
+  const staffPlain = process.env["SEED_STAFF_PASSWORD"] ?? "Staff@123456";
+  const adminPassword = await bcrypt.hash(adminPlain, SALT_ROUNDS);
+  const staffPassword = await bcrypt.hash(staffPlain, SALT_ROUNDS);
 
   const admin = await prisma.user.create({
     data: {

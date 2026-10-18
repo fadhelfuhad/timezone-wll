@@ -30,6 +30,11 @@ async function bootstrap(): Promise<void> {
     ? corsOriginsRaw.split(',').map((o) => o.trim()).filter(Boolean)
     : [];
 
+  // Trust the first proxy hop (Vercel / load balancer / reverse proxy) so the
+  // client IP is read from X-Forwarded-For. Without this, per-IP rate limiting
+  // sees every request as coming from the proxy's single IP.
+  app.getHttpAdapter().getInstance().set('trust proxy', 1);
+
   // Security headers
   app.use(helmet());
 

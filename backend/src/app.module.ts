@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { MulterModule } from '@nestjs/platform-express';
 import { WinstonModule } from 'nest-winston';
 import * as Joi from 'joi';
@@ -16,6 +17,7 @@ import { InventoryModule } from './inventory/inventory.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { ImportsModule } from './imports/imports.module';
 import { OcrModule } from './ocr/ocr.module';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -49,11 +51,13 @@ import { OcrModule } from './ocr/ocr.module';
       },
     }),
 
-    // Rate limiting: 10 requests per 60 seconds
+    // Rate limiting: generous global default (the dashboard fans out into
+    // many requests per page). Sensitive routes tighten this with @Throttle.
     ThrottlerModule.forRoot([
       {
+        name: 'default',
         ttl: 60_000,
-        limit: 10,
+        limit: 120,
       },
     ]),
 
@@ -81,21 +85,29 @@ import { OcrModule } from './ocr/ocr.module';
                     }),
                   ),
             }),
-            new winston.transports.File({
-              filename: 'logs/error.log',
-              level: 'error',
-              format: winston.format.combine(
-                winston.format.timestamp(),
-                winston.format.json(),
-              ),
-            }),
-            new winston.transports.File({
-              filename: 'logs/combined.log',
-              format: winston.format.combine(
-                winston.format.timestamp(),
-                winston.format.json(),
-              ),
-            }),
+            // File transports only in non-production. Serverless/container hosts
+            // (e.g. Vercel) have a read-only filesystem outside /tmp, so writing
+            // to ./logs would crash the app on boot. In production, logs go to
+            // stdout (Console) and are captured by the platform's log pipeline.
+            ...(isProduction
+              ? []
+              : [
+                  new winston.transports.File({
+                    filename: 'logs/error.log',
+                    level: 'error',
+                    format: winston.format.combine(
+                      winston.format.timestamp(),
+                      winston.format.json(),
+                    ),
+                  }),
+                  new winston.transports.File({
+                    filename: 'logs/combined.log',
+                    format: winston.format.combine(
+                      winston.format.timestamp(),
+                      winston.format.json(),
+                    ),
+                  }),
+                ]),
           ],
         };
       },
@@ -135,6 +147,15 @@ import { OcrModule } from './ocr/ocr.module';
     AnalyticsModule,
     ImportsModule,
     OcrModule,
+    HealthModule,
+  ],
+  providers: [
+    // Enforce rate limiting globally. Without this guard the configured
+    // ThrottlerModule limits are never applied to any route.
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
   ],
 })
 export class AppModule {}

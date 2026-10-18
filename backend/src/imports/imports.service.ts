@@ -202,7 +202,7 @@ export class ImportsService {
         fileSize: file.size,
         filePath: file.path,
         status: ImportStatus.PROCESSING,
-        importMode,
+        importMode: importMode as ImportMode,
         createdById: userId,
       },
     });
@@ -332,7 +332,7 @@ export class ImportsService {
         },
       });
 
-      return this.findOne(importRecord.id);
+      return this.findOne(importRecord.id, userId, role);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Processing error';
       this.logger.error(`Import processing failed: ${message}`);
@@ -346,8 +346,8 @@ export class ImportsService {
 
   // ─── Resolve conflicts ─────────────────────────────────────────────────────
 
-  async resolveConflicts(importId: string, dto: ResolveConflictsDto) {
-    const importRecord = await this.findOne(importId);
+  async resolveConflicts(importId: string, dto: ResolveConflictsDto, userId: string, role: Role) {
+    const importRecord = await this.findOne(importId, userId, role);
     if (importRecord.status === ImportStatus.APPROVED) {
       throw new BadRequestException('Cannot modify an already approved import');
     }
@@ -382,7 +382,7 @@ export class ImportsService {
       data: { conflictsResolved: resolved },
     });
 
-    return this.findOne(importId);
+    return this.findOne(importId, userId, role);
   }
 
   // ─── Find All ──────────────────────────────────────────────────────────────
@@ -401,18 +401,45 @@ export class ImportsService {
 
   // ─── Find One ──────────────────────────────────────────────────────────────
 
-  async findOne(id: string) {
+  /**
+   * Throw ForbiddenException unless the caller owns the import or is an admin.
+   * Prevents one staff user from reading or mutating another user's import
+   * by guessing its id (IDOR).
+   */
+  private assertAccess(
+    record: { createdById: string },
+    userId: string,
+    role: Role,
+  ): void {
+    const isAdmin =
+      (role as string) === 'ADMIN' || (role as string) === 'SUPER_ADMIN';
+    if (!isAdmin && record.createdById !== userId) {
+      throw new ForbiddenException('You do not have access to this import');
+    }
+  }
+
+  async findOne(id: string, userId: string, role: Role) {
     const record = await this.prisma.inventoryImport.findUnique({
       where: { id },
       include: { importRows: { orderBy: { rowNumber: 'asc' } } },
     });
     if (!record) throw new NotFoundException(`Import ${id} not found`);
+    this.assertAccess(record, userId, role);
     return record;
   }
 
   // ─── Update a single row ───────────────────────────────────────────────────
 
-  async updateRow(importId: string, rowId: string, dto: UpdateImportRowDto) {
+  async updateRow(
+    importId: string,
+    rowId: string,
+    dto: UpdateImportRowDto,
+    userId: string,
+    role: Role,
+  ) {
+    // Enforce ownership before touching any row.
+    await this.findOne(importId, userId, role);
+
     const row = await this.prisma.inventoryImportRow.findFirst({
       where: { id: rowId, importId },
     });
@@ -429,8 +456,8 @@ export class ImportsService {
 
   // ─── Approve ───────────────────────────────────────────────────────────────
 
-  async approve(importId: string, dto: ApproveImportDto, userId: string) {
-    const importRecord = await this.findOne(importId);
+  async approve(importId: string, dto: ApproveImportDto, userId: string, role: Role) {
+    const importRecord = await this.findOne(importId, userId, role);
 
     if (importRecord.status === ImportStatus.APPROVED) {
       throw new BadRequestException('Import has already been approved');
@@ -595,8 +622,8 @@ export class ImportsService {
 
   // ─── Cancel ────────────────────────────────────────────────────────────────
 
-  async cancel(importId: string, userId: string) {
-    const record = await this.findOne(importId);
+  async cancel(importId: string, userId: string, role: Role) {
+    const record = await this.findOne(importId, userId, role);
 
     if (record.status === ImportStatus.APPROVED) {
       throw new BadRequestException('Cannot cancel an already approved import');

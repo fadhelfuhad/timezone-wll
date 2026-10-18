@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -47,6 +48,27 @@ export class AnalyticsService {
     };
   }
 
+  /**
+   * Build parameterized date-range SQL fragments for raw queries.
+   * Values are bound as query parameters (never string-interpolated), so the
+   * clauses are immune to SQL injection. Inputs must be ISO date strings —
+   * callers validate this at the DTO layer; any non-date value makes Postgres
+   * reject the cast rather than execute attacker SQL.
+   */
+  private rawDateClauses({ dateFrom, dateTo }: DateRangeFilter): {
+    from: Prisma.Sql;
+    to: Prisma.Sql;
+  } {
+    return {
+      from: dateFrom
+        ? Prisma.sql`AND "dateAdded" >= ${dateFrom}::date`
+        : Prisma.empty,
+      to: dateTo
+        ? Prisma.sql`AND "dateAdded" < (${dateTo}::date + INTERVAL '1 day')`
+        : Prisma.empty,
+    };
+  }
+
   // ─── 1. Profit Summary ────────────────────────────────────────────────────────
 
   async getProfitSummary({ dateFrom, dateTo }: DateRangeFilter = {}) {
@@ -81,10 +103,9 @@ export class AnalyticsService {
   // ─── 2. Profit by Day ────────────────────────────────────────────────────────
 
   async getProfitByDay({ dateFrom, dateTo }: DateRangeFilter = {}) {
-    const dateFromClause = dateFrom ? `AND "dateAdded" >= '${dateFrom}'::date` : '';
-    const dateToClause = dateTo ? `AND "dateAdded" < (DATE '${dateTo}' + INTERVAL '1 day')` : '';
+    const { from, to } = this.rawDateClauses({ dateFrom, dateTo });
 
-    const rows = await this.prisma.$queryRawUnsafe<
+    const rows = await this.prisma.$queryRaw<
       {
         yr: number;
         mo: number;
@@ -95,7 +116,7 @@ export class AnalyticsService {
         item_count: string;
       }[]
     >(
-      `
+      Prisma.sql`
       SELECT
         EXTRACT(YEAR  FROM "dateAdded")::int AS yr,
         EXTRACT(MONTH FROM "dateAdded")::int AS mo,
@@ -106,8 +127,8 @@ export class AnalyticsService {
         COUNT(id)::text                      AS item_count
       FROM inventory_items
       WHERE "isDeleted" = false
-        ${dateFromClause}
-        ${dateToClause}
+        ${from}
+        ${to}
       GROUP BY 1, 2, 3
       ORDER BY 1 ASC, 2 ASC, 3 ASC
       `,
@@ -128,10 +149,9 @@ export class AnalyticsService {
   // ─── 3. Profit by Month ───────────────────────────────────────────────────────
 
   async getProfitByMonth({ dateFrom, dateTo }: DateRangeFilter = {}) {
-    const dateFromClause = dateFrom ? `AND "dateAdded" >= '${dateFrom}'::date` : '';
-    const dateToClause = dateTo ? `AND "dateAdded" < (DATE '${dateTo}' + INTERVAL '1 day')` : '';
+    const { from, to } = this.rawDateClauses({ dateFrom, dateTo });
 
-    const rows = await this.prisma.$queryRawUnsafe<
+    const rows = await this.prisma.$queryRaw<
       {
         yr: number;
         mo: number;
@@ -141,7 +161,7 @@ export class AnalyticsService {
         item_count: string;
       }[]
     >(
-      `
+      Prisma.sql`
       SELECT
         EXTRACT(YEAR  FROM "dateAdded")::int  AS yr,
         EXTRACT(MONTH FROM "dateAdded")::int  AS mo,
@@ -151,8 +171,8 @@ export class AnalyticsService {
         COUNT(id)::text                       AS item_count
       FROM inventory_items
       WHERE "isDeleted" = false
-        ${dateFromClause}
-        ${dateToClause}
+        ${from}
+        ${to}
       GROUP BY 1, 2
       ORDER BY 1 ASC, 2 ASC
       `,
@@ -172,10 +192,9 @@ export class AnalyticsService {
   // ─── 3. Profit by Year ────────────────────────────────────────────────────────
 
   async getProfitByYear({ dateFrom, dateTo }: DateRangeFilter = {}) {
-    const dateFromClause = dateFrom ? `AND "dateAdded" >= '${dateFrom}'::date` : '';
-    const dateToClause = dateTo ? `AND "dateAdded" < (DATE '${dateTo}' + INTERVAL '1 day')` : '';
+    const { from, to } = this.rawDateClauses({ dateFrom, dateTo });
 
-    const rows = await this.prisma.$queryRawUnsafe<
+    const rows = await this.prisma.$queryRaw<
       {
         yr: number;
         total_profit: string;
@@ -184,7 +203,7 @@ export class AnalyticsService {
         item_count: string;
       }[]
     >(
-      `
+      Prisma.sql`
       SELECT
         EXTRACT(YEAR FROM "dateAdded")::int AS yr,
         SUM(profit)::text                   AS total_profit,
@@ -193,8 +212,8 @@ export class AnalyticsService {
         COUNT(id)::text                     AS item_count
       FROM inventory_items
       WHERE "isDeleted" = false
-        ${dateFromClause}
-        ${dateToClause}
+        ${from}
+        ${to}
       GROUP BY 1
       ORDER BY 1 ASC
       `,
@@ -283,10 +302,9 @@ export class AnalyticsService {
   // ─── 6. Cost vs Sale by Month ─────────────────────────────────────────────────
 
   async getCostVsSaleByMonth({ dateFrom, dateTo }: DateRangeFilter = {}) {
-    const dateFromClause = dateFrom ? `AND "dateAdded" >= '${dateFrom}'::date` : '';
-    const dateToClause = dateTo ? `AND "dateAdded" < (DATE '${dateTo}' + INTERVAL '1 day')` : '';
+    const { from, to } = this.rawDateClauses({ dateFrom, dateTo });
 
-    const rows = await this.prisma.$queryRawUnsafe<
+    const rows = await this.prisma.$queryRaw<
       {
         yr: number;
         mo: number;
@@ -295,7 +313,7 @@ export class AnalyticsService {
         profit: string;
       }[]
     >(
-      `
+      Prisma.sql`
       SELECT
         EXTRACT(YEAR  FROM "dateAdded")::int AS yr,
         EXTRACT(MONTH FROM "dateAdded")::int AS mo,
@@ -304,8 +322,8 @@ export class AnalyticsService {
         SUM(profit)::text                    AS profit
       FROM inventory_items
       WHERE "isDeleted" = false
-        ${dateFromClause}
-        ${dateToClause}
+        ${from}
+        ${to}
       GROUP BY 1, 2
       ORDER BY 1 ASC, 2 ASC
       `,
@@ -354,10 +372,9 @@ export class AnalyticsService {
   // ─── 8. Profit Growth (cumulative running total) ──────────────────────────────
 
   async getProfitGrowth({ dateFrom, dateTo }: DateRangeFilter = {}) {
-    const dateFromClause = dateFrom ? `AND "dateAdded" >= '${dateFrom}'::date` : '';
-    const dateToClause = dateTo ? `AND "dateAdded" < (DATE '${dateTo}' + INTERVAL '1 day')` : '';
+    const { from, to } = this.rawDateClauses({ dateFrom, dateTo });
 
-    const rows = await this.prisma.$queryRawUnsafe<
+    const rows = await this.prisma.$queryRaw<
       {
         yr: number;
         mo: number;
@@ -365,7 +382,7 @@ export class AnalyticsService {
         cumulative_profit: string;
       }[]
     >(
-      `
+      Prisma.sql`
       SELECT
         yr,
         mo,
@@ -378,8 +395,8 @@ export class AnalyticsService {
           SUM(profit)                          AS monthly_profit
         FROM inventory_items
         WHERE "isDeleted" = false
-          ${dateFromClause}
-          ${dateToClause}
+          ${from}
+          ${to}
         GROUP BY 1, 2
       ) monthly
       ORDER BY yr ASC, mo ASC

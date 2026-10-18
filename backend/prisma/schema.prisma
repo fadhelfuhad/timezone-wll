@@ -4,7 +4,11 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  // Pooled connection (Supabase pgbouncer, port 6543) used at runtime.
   url      = env("DATABASE_URL")
+  // Direct connection (port 5432) used by `prisma migrate`, which cannot run
+  // through a transaction pooler. Locally set DIRECT_URL = DATABASE_URL.
+  directUrl = env("DIRECT_URL")
 }
 
 // ─── Enums ────────────────────────────────────────────────────────────────────

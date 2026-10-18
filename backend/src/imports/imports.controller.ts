@@ -15,6 +15,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as os from 'os';
 import { ImportMode, Role, User } from '@prisma/client';
 
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -28,8 +29,18 @@ import {
   UpdateImportRowDto,
 } from './dto/create-import.dto';
 
-const UPLOAD_DIR = path.resolve('uploads');
-if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+// Resolve the upload directory from env, falling back to the OS temp dir.
+// On a read-only serverless filesystem (e.g. Vercel) only the temp dir is
+// writable, so default there rather than to ./uploads which cannot be created.
+const UPLOAD_DIR = process.env['UPLOAD_DIR']
+  ? path.resolve(process.env['UPLOAD_DIR'])
+  : path.join(os.tmpdir(), 'timezone-uploads');
+try {
+  if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+} catch {
+  // Directory creation can fail on a read-only FS; Multer will surface a clear
+  // error at upload time rather than crashing the whole app at import.
+}
 
 const UPLOAD_STORAGE = diskStorage({
   destination: UPLOAD_DIR,
@@ -90,8 +101,8 @@ export class ImportsController {
   // ─── Get single import with rows ──────────────────────────────────────────
 
   @Get(':id')
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
-    return this.importsService.findOne(id);
+  findOne(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: User) {
+    return this.importsService.findOne(id, user.id, user.role as Role);
   }
 
   // ─── Update a specific row ────────────────────────────────────────────────
@@ -101,8 +112,9 @@ export class ImportsController {
     @Param('id', ParseUUIDPipe) importId: string,
     @Param('rowId', ParseUUIDPipe) rowId: string,
     @Body() dto: UpdateImportRowDto,
+    @CurrentUser() user: User,
   ) {
-    return this.importsService.updateRow(importId, rowId, dto);
+    return this.importsService.updateRow(importId, rowId, dto, user.id, user.role as Role);
   }
 
   // ─── Resolve conflicts ────────────────────────────────────────────────────
@@ -111,8 +123,9 @@ export class ImportsController {
   resolveConflicts(
     @Param('id', ParseUUIDPipe) importId: string,
     @Body() dto: ResolveConflictsDto,
+    @CurrentUser() user: User,
   ) {
-    return this.importsService.resolveConflicts(importId, dto);
+    return this.importsService.resolveConflicts(importId, dto, user.id, user.role as Role);
   }
 
   // ─── Approve import ───────────────────────────────────────────────────────
@@ -121,9 +134,9 @@ export class ImportsController {
   approve(
     @Param('id', ParseUUIDPipe) importId: string,
     @Body() dto: ApproveImportDto,
-    @CurrentUser('id') userId: string,
+    @CurrentUser() user: User,
   ) {
-    return this.importsService.approve(importId, dto, userId);
+    return this.importsService.approve(importId, dto, user.id, user.role as Role);
   }
 
   // ─── Cancel import ────────────────────────────────────────────────────────
@@ -131,8 +144,8 @@ export class ImportsController {
   @Post(':id/cancel')
   cancel(
     @Param('id', ParseUUIDPipe) importId: string,
-    @CurrentUser('id') userId: string,
+    @CurrentUser() user: User,
   ) {
-    return this.importsService.cancel(importId, userId);
+    return this.importsService.cancel(importId, user.id, user.role as Role);
   }
 }

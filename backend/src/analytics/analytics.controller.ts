@@ -9,6 +9,7 @@ import {
 
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AnalyticsService } from './analytics.service';
+import { AnalyticsQueryDto } from './dto/analytics-query.dto';
 
 @ApiTags('analytics')
 @ApiBearerAuth('access-token')
@@ -47,11 +48,8 @@ export class AnalyticsController {
   })
   @ApiResponse({ status: 200, description: 'Profit summary returned successfully' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  getProfitSummary(
-    @Query('dateFrom') dateFrom?: string,
-    @Query('dateTo') dateTo?: string,
-  ) {
-    return this.analyticsService.getProfitSummary({ dateFrom, dateTo });
+  getProfitSummary(@Query() query: AnalyticsQueryDto) {
+    return this.analyticsService.getProfitSummary(query);
   }
 
   @Get('profit-by-day')
@@ -63,11 +61,8 @@ export class AnalyticsController {
   })
   @ApiResponse({ status: 200, description: 'Daily profit data returned successfully' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  getProfitByDay(
-    @Query('dateFrom') dateFrom?: string,
-    @Query('dateTo') dateTo?: string,
-  ) {
-    return this.analyticsService.getProfitByDay({ dateFrom, dateTo });
+  getProfitByDay(@Query() query: AnalyticsQueryDto) {
+    return this.analyticsService.getProfitByDay(query);
   }
 
   @Get('profit-by-month')
@@ -79,11 +74,8 @@ export class AnalyticsController {
   })
   @ApiResponse({ status: 200, description: 'Monthly profit data returned successfully' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  getProfitByMonth(
-    @Query('dateFrom') dateFrom?: string,
-    @Query('dateTo') dateTo?: string,
-  ) {
-    return this.analyticsService.getProfitByMonth({ dateFrom, dateTo });
+  getProfitByMonth(@Query() query: AnalyticsQueryDto) {
+    return this.analyticsService.getProfitByMonth(query);
   }
 
   @Get('profit-by-year')
@@ -95,11 +87,8 @@ export class AnalyticsController {
   })
   @ApiResponse({ status: 200, description: 'Yearly profit data returned successfully' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  getProfitByYear(
-    @Query('dateFrom') dateFrom?: string,
-    @Query('dateTo') dateTo?: string,
-  ) {
-    return this.analyticsService.getProfitByYear({ dateFrom, dateTo });
+  getProfitByYear(@Query() query: AnalyticsQueryDto) {
+    return this.analyticsService.getProfitByYear(query);
   }
 
   @Get('profit-by-brand')
@@ -112,11 +101,8 @@ export class AnalyticsController {
   })
   @ApiResponse({ status: 200, description: 'Brand profit data returned successfully' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  getProfitByBrand(
-    @Query('dateFrom') dateFrom?: string,
-    @Query('dateTo') dateTo?: string,
-  ) {
-    return this.analyticsService.getProfitByBrand({ dateFrom, dateTo });
+  getProfitByBrand(@Query() query: AnalyticsQueryDto) {
+    return this.analyticsService.getProfitByBrand(query);
   }
 
   @Get('profit-by-product')
@@ -129,11 +115,8 @@ export class AnalyticsController {
   })
   @ApiResponse({ status: 200, description: 'Product profit data returned successfully' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  getProfitByProduct(
-    @Query('dateFrom') dateFrom?: string,
-    @Query('dateTo') dateTo?: string,
-  ) {
-    return this.analyticsService.getProfitByProduct({ dateFrom, dateTo });
+  getProfitByProduct(@Query() query: AnalyticsQueryDto) {
+    return this.analyticsService.getProfitByProduct(query);
   }
 
   @Get('cost-vs-sale')
@@ -146,11 +129,8 @@ export class AnalyticsController {
   })
   @ApiResponse({ status: 200, description: 'Cost vs sale data returned successfully' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  getCostVsSaleByMonth(
-    @Query('dateFrom') dateFrom?: string,
-    @Query('dateTo') dateTo?: string,
-  ) {
-    return this.analyticsService.getCostVsSaleByMonth({ dateFrom, dateTo });
+  getCostVsSaleByMonth(@Query() query: AnalyticsQueryDto) {
+    return this.analyticsService.getCostVsSaleByMonth(query);
   }
 
   @Get('inventory-by-brand')
@@ -163,11 +143,8 @@ export class AnalyticsController {
   })
   @ApiResponse({ status: 200, description: 'Inventory brand data returned successfully' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  getInventoryByBrand(
-    @Query('dateFrom') dateFrom?: string,
-    @Query('dateTo') dateTo?: string,
-  ) {
-    return this.analyticsService.getInventoryByBrand({ dateFrom, dateTo });
+  getInventoryByBrand(@Query() query: AnalyticsQueryDto) {
+    return this.analyticsService.getInventoryByBrand(query);
   }
 
   @Get('profit-growth')
@@ -180,11 +157,8 @@ export class AnalyticsController {
   })
   @ApiResponse({ status: 200, description: 'Profit growth data returned successfully' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  getProfitGrowth(
-    @Query('dateFrom') dateFrom?: string,
-    @Query('dateTo') dateTo?: string,
-  ) {
-    return this.analyticsService.getProfitGrowth({ dateFrom, dateTo });
+  getProfitGrowth(@Query() query: AnalyticsQueryDto) {
+    return this.analyticsService.getProfitGrowth(query);
   }
 
   @Get('top-performers')
@@ -197,10 +171,7 @@ export class AnalyticsController {
   })
   @ApiResponse({ status: 200, description: 'Top performers returned successfully' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  getTopPerformers(
-    @Query('dateFrom') dateFrom?: string,
-    @Query('dateTo') dateTo?: string,
-  ) {
-    return this.analyticsService.getTopPerformers({ dateFrom, dateTo });
+  getTopPerformers(@Query() query: AnalyticsQueryDto) {
+    return this.analyticsService.getTopPerformers(query);
   }
 }

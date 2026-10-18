@@ -44,20 +44,23 @@ axiosInstance.interceptors.response.use(
   },
 );
 
+// The response interceptor unwraps `response.data.data` and returns the payload
+// directly, so at runtime these resolve to T. Axios's own types still describe
+// the raw AxiosResponse, so we cast through unknown to the real resolved shape.
 export function get<T>(url: string, params?: Record<string, unknown>): Promise<T> {
-  return axiosInstance.get<T, T>(url, { params });
+  return axiosInstance.get(url, { params }) as unknown as Promise<T>;
 }
 
 export function post<T>(url: string, data?: unknown, config?: Record<string, unknown>): Promise<T> {
-  return axiosInstance.post<T, T>(url, data, config);
+  return axiosInstance.post(url, data, config) as unknown as Promise<T>;
 }
 
 export function patch<T>(url: string, data?: unknown): Promise<T> {
-  return axiosInstance.patch<T, T>(url, data);
+  return axiosInstance.patch(url, data) as unknown as Promise<T>;
 }
 
 export function del<T = void>(url: string): Promise<T> {
-  return axiosInstance.delete<T, T>(url);
+  return axiosInstance.delete(url) as unknown as Promise<T>;
 }
 
 export { TOKEN_KEY, REFRESH_TOKEN_KEY };
