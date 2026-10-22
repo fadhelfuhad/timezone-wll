@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException, ConflictException }
 import { AuditAction, Prisma } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { currentWorkspace } from '../common/workspace/workspace';
 import { CreateInventoryDto } from './dto/create-inventory.dto';
 import { UpdateInventoryDto } from './dto/update-inventory.dto';
 import { QueryInventoryDto } from './dto/query-inventory.dto';
@@ -54,6 +55,7 @@ export class InventoryService {
     try {
       item = await this.prisma.inventoryItem.create({
         data: {
+          workspace: currentWorkspace(),
           description: dto.description,
           brand: dto.brand,
           model: dto.model,
@@ -82,6 +84,7 @@ export class InventoryService {
 
     await this.prisma.auditLog.create({
       data: {
+        workspace: currentWorkspace(),
         action: AuditAction.CREATE,
         entityType: 'InventoryItem',
         entityId: item.id,
@@ -282,6 +285,7 @@ export class InventoryService {
 
     await this.prisma.auditLog.create({
       data: {
+        workspace: currentWorkspace(),
         action: AuditAction.UPDATE,
         entityType: 'InventoryItem',
         entityId: id,
@@ -312,6 +316,7 @@ export class InventoryService {
 
     await this.prisma.auditLog.create({
       data: {
+        workspace: currentWorkspace(),
         action: AuditAction.DELETE,
         entityType: 'InventoryItem',
         entityId: id,
@@ -353,6 +358,7 @@ export class InventoryService {
 
           const created = await tx.inventoryItem.create({
             data: {
+              workspace: currentWorkspace(),
               description: item.description,
               brand: item.brand,
               model: item.model,
@@ -375,6 +381,7 @@ export class InventoryService {
 
           await tx.auditLog.create({
             data: {
+              workspace: currentWorkspace(),
               action: AuditAction.IMPORT,
               entityType: 'InventoryItem',
               entityId: created.id,

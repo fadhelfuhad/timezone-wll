@@ -12,6 +12,8 @@ export interface User {
   lastName: string;
   role: Role;
   isActive: boolean;
+  // COMPANY = the real business data; GUEST = the public demo opened by "Continue as guest".
+  workspace?: 'COMPANY' | 'GUEST';
   createdAt: string;
   updatedAt: string;
 }

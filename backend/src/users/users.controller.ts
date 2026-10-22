@@ -21,9 +21,11 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { QueryUsersDto } from './dto/query-users.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UsersService } from './users.service';
+import { NoGuestGuard } from '../common/workspace/workspace';
 
 @Controller('users')
-@UseGuards(AuthGuard('jwt'), RolesGuard)
+// Account management is for the company only; the guest demo can't see or change accounts.
+@UseGuards(AuthGuard('jwt'), NoGuestGuard, RolesGuard)
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 

@@ -68,6 +68,15 @@ A full-stack inventory management system built for a premium watch retail compan
 - Preference persisted in `localStorage` — survives page refresh
 - Defaults to dark mode on first visit
 
+### Guest demo and workspaces
+- **Continue as guest** on the login page opens a demo anyone can use: add, edit, delete, import CSV/Excel/PDF sheets, camera scan, export and analytics, all on sample data
+- Every row in the database belongs to a workspace:
+  - `COMPANY`: the real business data. Admin and staff accounts see only this.
+  - `GUEST`: the demo, owned by a built-in guest account.
+- The backend enforces the split in one place. A Prisma middleware adds the caller's workspace to every query on items, imports, import rows and audit logs, and refuses any query that has no workspace. The raw SQL in analytics and REPLACE imports filters by workspace explicitly.
+- Guests can't manage users or change passwords, and the guest account can't sign in with a password
+- `pnpm prisma:seed` (or `npx tsx prisma/seed.ts`) resets the guest demo to its 600 sample items without touching company data or existing accounts
+
 ---
 
 ## Tech Stack
@@ -228,6 +237,8 @@ bash start.sh
 
 ## Default Credentials
 
+Local development defaults (production uses `SEED_ADMIN_PASSWORD` / `SEED_STAFF_PASSWORD`). Both accounts use the `COMPANY` workspace; the guest demo needs no credentials.
+
 | Role | Email | Password |
 |---|---|---|
 | Admin | `admin@timezone.bh` | `Admin@123456` |
@@ -237,13 +248,14 @@ bash start.sh
 
 ## API Reference
 
-All routes except `/auth/login` require a `Bearer` token in the `Authorization` header.
+All routes except `/auth/login` and `/auth/guest` require a `Bearer` token in the `Authorization` header.
 
 ### Authentication
 
 | Method | Path | Description |
 |---|---|---|
 | `POST` | `/api/auth/login` | Login — returns access + refresh tokens |
+| `POST` | `/api/auth/guest` | Open the guest demo — tokens for the guest workspace |
 | `POST` | `/api/auth/logout` | Logout — invalidates refresh token |
 | `POST` | `/api/auth/refresh` | Exchange refresh token for new access token |
 | `GET` | `/api/auth/profile` | Get current authenticated user |

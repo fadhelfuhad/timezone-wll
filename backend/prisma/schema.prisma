@@ -56,6 +56,14 @@ enum ConflictResolution {
   SKIP
 }
 
+// Each record belongs to one workspace. COMPANY is the real business data, used by
+// admin and staff accounts. GUEST is the public demo opened by "Continue as guest";
+// guests can change it freely but can never read or write COMPANY rows.
+enum Workspace {
+  COMPANY
+  GUEST
+}
+
 enum AuditAction {
   CREATE
   UPDATE
@@ -78,12 +86,14 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  workspace Workspace @default(COMPANY)
   // Relations
   inventoryItems         InventoryItem[] @relation("CreatedByUser")
   updatedInventoryItems  InventoryItem[] @relation("UpdatedByUser")
   auditLogs              AuditLog[]
   imports                InventoryImport[]
 
+  @@index([workspace])
   @@map("users")
 }
 
@@ -112,6 +122,7 @@ model InventoryItem {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
+  workspace    Workspace
   // Relations
   createdBy User            @relation("CreatedByUser", fields: [createdById], references: [id])
   updatedBy User?           @relation("UpdatedByUser", fields: [updatedById], references: [id])
@@ -126,7 +137,9 @@ model InventoryItem {
   @@index([createdAt])
   @@index([isDeleted])
   @@index([brand, isDeleted])
+  @@index([workspace, isDeleted])
 
+  @@index([workspace])
   @@map("inventory_items")
 }
 
@@ -154,11 +167,13 @@ model InventoryImport {
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt
 
+  workspace          Workspace
   // Relations
   createdBy  User                 @relation(fields: [createdById], references: [id])
   items      InventoryItem[]
   importRows InventoryImportRow[]
 
+  @@index([workspace])
   @@map("inventory_imports")
 }
 
@@ -176,12 +191,14 @@ model InventoryImportRow {
   resolvedData     Json?
   createdAt        DateTime            @default(now())
 
+  workspace        Workspace
   // Relations
   import InventoryImport @relation(fields: [importId], references: [id])
 
   // Indexes
   @@index([importId])
 
+  @@index([workspace])
   @@map("inventory_import_rows")
 }
 
@@ -199,6 +216,7 @@ model AuditLog {
   itemId      String?
   createdAt   DateTime    @default(now())
 
+  workspace   Workspace
   // Relations
   user User           @relation(fields: [userId], references: [id])
   item InventoryItem? @relation(fields: [itemId], references: [id])
@@ -209,5 +227,6 @@ model AuditLog {
   @@index([entityId])
   @@index([createdAt])
 
+  @@index([workspace])
   @@map("audit_logs")
 }

@@ -46,8 +46,9 @@ interface SidebarProps {
 function NavList({ onNavigate }: { onNavigate?: () => void }) {
   const { pathname } = useLocation();
   const navigate = useNavigate();
-  const { hasRole } = useAuth();
-  const isAdmin = hasRole('ADMIN');
+  const { hasRole, isGuest } = useAuth();
+  // The guest demo has no user management.
+  const isAdmin = hasRole('ADMIN') && !isGuest;
 
   const visibleItems = NAV_ITEMS.filter((item) => !item.adminOnly || isAdmin);
 
@@ -105,7 +106,7 @@ function NavList({ onNavigate }: { onNavigate?: () => void }) {
 }
 
 function DrawerContent({ onNavigate }: { onNavigate?: () => void }) {
-  const { user } = useAuth();
+  const { user, isGuest } = useAuth();
 
   return (
     <Box display="flex" flexDirection="column" height="100%">
@@ -178,7 +179,7 @@ function DrawerContent({ onNavigate }: { onNavigate?: () => void }) {
               {user ? `${user.firstName} ${user.lastName}` : 'Guest'}
             </Box>
             <Chip
-              label={user?.role ?? 'STAFF'}
+              label={isGuest ? 'GUEST' : (user?.role ?? 'STAFF')}
               size="small"
               variant="outlined"
               sx={{

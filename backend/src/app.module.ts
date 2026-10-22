@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { MulterModule } from '@nestjs/platform-express';
@@ -18,6 +18,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
 import { ImportsModule } from './imports/imports.module';
 import { OcrModule } from './ocr/ocr.module';
 import { HealthModule } from './health/health.module';
+import { WorkspaceInterceptor } from './common/workspace/workspace';
 
 @Module({
   imports: [
@@ -155,6 +156,11 @@ import { HealthModule } from './health/health.module';
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
+    },
+    // Runs each signed-in request inside its user's workspace (company or guest demo).
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: WorkspaceInterceptor,
     },
   ],
 })

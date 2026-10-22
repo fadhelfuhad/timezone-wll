@@ -5,6 +5,11 @@ export function login(email: string, password: string): Promise<AuthTokens> {
   return post<AuthTokens>('/auth/login', { email, password });
 }
 
+// Opens the guest demo: a separate workspace the API never lets touch company data.
+export function guestLogin(): Promise<AuthTokens> {
+  return post<AuthTokens>('/auth/guest');
+}
+
 export function logout(): Promise<void> {
   return post<void>('/auth/logout');
 }

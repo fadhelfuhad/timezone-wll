@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { getProfile, login as apiLogin, logout as apiLogout } from '../api/auth.api';
+import { getProfile, guestLogin, login as apiLogin, logout as apiLogout } from '../api/auth.api';
 import { REFRESH_TOKEN_KEY, TOKEN_KEY } from '../api/client';
 import type { Role, User } from '../types';
 
@@ -8,6 +8,9 @@ interface AuthContextValue {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  loginAsGuest: () => Promise<void>;
+  // True in the guest demo: its own data, no user management or password changes.
+  isGuest: boolean;
   logout: () => Promise<void>;
   hasRole: (role: Role) => boolean;
 }
@@ -47,6 +50,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(tokens.user);
   }, []);
 
+  const loginAsGuest = useCallback(async (): Promise<void> => {
+    const tokens = await guestLogin();
+    localStorage.setItem(TOKEN_KEY, tokens.accessToken);
+    localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refreshToken);
+    setUser(tokens.user);
+  }, []);
+
   const logout = useCallback(async (): Promise<void> => {
     try {
       await apiLogout();
@@ -76,10 +86,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isAuthenticated: user !== null,
       isLoading,
       login,
+      loginAsGuest,
+      isGuest: user?.workspace === 'GUEST',
       logout,
       hasRole,
     }),
-    [user, isLoading, login, logout, hasRole],
+    [user, isLoading, login, loginAsGuest, logout, hasRole],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

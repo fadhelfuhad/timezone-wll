@@ -58,7 +58,7 @@ export function ProtectedRoute({ children }: { children: ReactNode }): React.Rea
 
 // Guard: requires ADMIN role; redirects to /login (unauthenticated) or /dashboard (wrong role)
 export function AdminRoute({ children }: { children: ReactNode }): React.ReactElement {
-  const { isAuthenticated, isLoading, hasRole } = useAuth();
+  const { isAuthenticated, isLoading, hasRole, isGuest } = useAuth();
 
   if (isLoading) {
     return <PageLoader />;
@@ -68,7 +68,7 @@ export function AdminRoute({ children }: { children: ReactNode }): React.ReactEl
     return <Navigate to="/login" replace />;
   }
 
-  if (!hasRole('ADMIN')) {
+  if (!hasRole('ADMIN') || isGuest) {
     return <Navigate to="/dashboard" replace />;
   }
 

@@ -43,7 +43,8 @@ const darkFieldSx = {
 } as const;
 
 export default function Login() {
-  const { login } = useAuth();
+  const { login, loginAsGuest } = useAuth();
+  const [guestLoading, setGuestLoading] = useState(false);
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -56,6 +57,19 @@ export default function Login() {
     resolver: zodResolver(loginSchema),
     defaultValues: { email: '', password: '' },
   });
+
+  const onGuest = async () => {
+    setErrorMessage(null);
+    setGuestLoading(true);
+    try {
+      await loginAsGuest();
+      navigate('/dashboard', { replace: true });
+    } catch {
+      setErrorMessage('The guest demo is unavailable right now. Please try again.');
+    } finally {
+      setGuestLoading(false);
+    }
+  };
 
   const onSubmit = async (values: LoginFormValues) => {
     setErrorMessage(null);
@@ -306,6 +320,35 @@ export default function Login() {
               Sign In
             </LoadingButton>
           </Box>
+
+          <Box display="flex" alignItems="center" gap={1.5} my={2.5}>
+            <Box flex={1} height="1px" bgcolor="rgba(255,255,255,0.1)" />
+            <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.35)', letterSpacing: 2 }}>
+              OR
+            </Typography>
+            <Box flex={1} height="1px" bgcolor="rgba(255,255,255,0.1)" />
+          </Box>
+
+          <LoadingButton
+            fullWidth
+            variant="outlined"
+            size="large"
+            loading={guestLoading}
+            onClick={() => void onGuest()}
+            sx={{
+              color: '#d9bc72',
+              borderColor: 'rgba(201,168,76,0.45)',
+              fontWeight: 700,
+              letterSpacing: 1.2,
+              py: 1.3,
+              '&:hover': { borderColor: '#c9a84c', bgcolor: 'rgba(201,168,76,0.08)' },
+            }}
+          >
+            Continue as guest
+          </LoadingButton>
+          <Typography variant="caption" display="block" textAlign="center" mt={1.25} sx={{ color: 'rgba(255,255,255,0.4)' }}>
+            Try the full app on sample data. It's separate from the company's records.
+          </Typography>
 
           <Typography
             variant="caption"

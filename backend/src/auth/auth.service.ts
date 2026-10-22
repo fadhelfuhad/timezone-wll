@@ -11,6 +11,7 @@ import type { AppConfig } from '../config/configuration';
 import type { LoginDto } from './dto/login.dto';
 import type { ChangePasswordDto } from './dto/change-password.dto';
 import type { JwtPayload } from './strategies/jwt.strategy';
+import { GUEST_USER_ID, currentWorkspace, isGuest } from '../common/workspace/workspace';
 
 const BCRYPT_ROUNDS = 10;
 
@@ -38,9 +39,22 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    return this.issue(user);
+  }
+
+  /** "Continue as guest": a session in the GUEST workspace, never the company's. */
+  async guestLogin(): Promise<AuthTokens> {
+    const user = await this.usersService.findById(GUEST_USER_ID);
+    if (!user || !isGuest(user) || !user.isActive) {
+      throw new UnauthorizedException('The guest demo is not available');
+    }
+    return this.issue(user);
+  }
+
+  private async issue(user: User): Promise<AuthTokens> {
     const tokens = this.generateTokens(user);
 
-    await this.createAuditLog(AuditAction.LOGIN, user.id);
+    await this.createAuditLog(AuditAction.LOGIN, user);
 
     const { password: _password, ...userWithoutPassword } = user;
 
@@ -50,8 +64,8 @@ export class AuthService {
     };
   }
 
-  async logout(userId: string): Promise<void> {
-    await this.createAuditLog(AuditAction.LOGOUT, userId);
+  async logout(user: User): Promise<void> {
+    await this.createAuditLog(AuditAction.LOGOUT, user);
   }
 
   async refreshTokens(
@@ -95,7 +109,8 @@ export class AuthService {
   async validateUser(email: string, password: string): Promise<User | null> {
     const user = await this.usersService.findByEmail(email.toLowerCase().trim());
 
-    if (!user || !user.isActive) {
+    // The guest account has no password; it only signs in through guestLogin().
+    if (!user || !user.isActive || isGuest(user)) {
       return null;
     }
 
@@ -116,6 +131,9 @@ export class AuthService {
 
     if (!user || !user.isActive) {
       throw new UnauthorizedException('User not found or inactive');
+    }
+    if (isGuest(user)) {
+      throw new BadRequestException('The guest demo account has no password to change');
     }
 
     const currentValid = await bcrypt.compare(dto.currentPassword, user.password);
@@ -139,6 +157,7 @@ export class AuthService {
 
     await this.prisma.auditLog.create({
       data: {
+        workspace: currentWorkspace(),
         action: AuditAction.UPDATE,
         entityType: 'User',
         entityId: userId,
@@ -188,13 +207,15 @@ export class AuthService {
     return { accessToken, refreshToken };
   }
 
-  private async createAuditLog(action: AuditAction, userId: string): Promise<void> {
+  // Sign-in happens before a session exists, so the workspace is named explicitly.
+  private async createAuditLog(action: AuditAction, user: User): Promise<void> {
     await this.prisma.auditLog.create({
       data: {
         action,
         entityType: 'User',
-        entityId: userId,
-        userId,
+        entityId: user.id,
+        userId: user.id,
+        workspace: user.workspace,
       },
     });
   }

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
+import { workspaceSql } from '../common/workspace/workspace';
 import { PrismaService } from '../prisma/prisma.service';
 
 const MONTH_NAMES = [
@@ -126,7 +127,7 @@ export class AnalyticsService {
         SUM("totalSale")::text               AS total_sale,
         COUNT(id)::text                      AS item_count
       FROM inventory_items
-      WHERE "isDeleted" = false
+      WHERE "isDeleted" = false ${workspaceSql()}
         ${from}
         ${to}
       GROUP BY 1, 2, 3
@@ -170,7 +171,7 @@ export class AnalyticsService {
         SUM("totalSale")::text                AS total_sale,
         COUNT(id)::text                       AS item_count
       FROM inventory_items
-      WHERE "isDeleted" = false
+      WHERE "isDeleted" = false ${workspaceSql()}
         ${from}
         ${to}
       GROUP BY 1, 2
@@ -211,7 +212,7 @@ export class AnalyticsService {
         SUM("totalSale")::text              AS total_sale,
         COUNT(id)::text                     AS item_count
       FROM inventory_items
-      WHERE "isDeleted" = false
+      WHERE "isDeleted" = false ${workspaceSql()}
         ${from}
         ${to}
       GROUP BY 1
@@ -321,7 +322,7 @@ export class AnalyticsService {
         SUM("totalSale")::text               AS total_sale,
         SUM(profit)::text                    AS profit
       FROM inventory_items
-      WHERE "isDeleted" = false
+      WHERE "isDeleted" = false ${workspaceSql()}
         ${from}
         ${to}
       GROUP BY 1, 2
@@ -394,7 +395,7 @@ export class AnalyticsService {
           EXTRACT(MONTH FROM "dateAdded")::int AS mo,
           SUM(profit)                          AS monthly_profit
         FROM inventory_items
-        WHERE "isDeleted" = false
+        WHERE "isDeleted" = false ${workspaceSql()}
           ${from}
           ${to}
         GROUP BY 1, 2

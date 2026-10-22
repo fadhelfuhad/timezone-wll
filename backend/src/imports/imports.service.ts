@@ -18,6 +18,7 @@ import {
   ImportMode,
 } from '@prisma/client';
 
+import { currentWorkspace, workspaceSql } from '../common/workspace/workspace';
 import { PrismaService } from '../prisma/prisma.service';
 import { OcrService } from '../ocr/ocr.service';
 import { InventoryService } from '../inventory/inventory.service';
@@ -196,6 +197,7 @@ export class ImportsService {
 
     const importRecord = await this.prisma.inventoryImport.create({
       data: {
+        workspace: currentWorkspace(),
         filename: file.filename,
         originalName: file.originalname,
         fileType,
@@ -271,6 +273,7 @@ export class ImportsService {
 
           return this.prisma.inventoryImportRow.create({
             data: {
+              workspace: currentWorkspace(),
               importId: importRecord.id,
               rowNumber: idx + 1,
               rawData: { rawLine: row.rawLine ?? '', ...row },
@@ -480,7 +483,8 @@ export class ImportsService {
     // (WHERE "isDeleted" = false) means soft-deleted rows no longer participate in
     // the uniqueness check, so new items can be inserted with the same SKUs.
     if ((importRecord.importMode as string) === 'REPLACE') {
-      await this.prisma.$executeRaw`UPDATE "inventory_items" SET "isDeleted" = true WHERE "isDeleted" = false`;
+      // Only this workspace's items: a guest REPLACE import must never touch COMPANY data.
+      await this.prisma.$executeRaw`UPDATE "inventory_items" SET "isDeleted" = true WHERE "isDeleted" = false ${workspaceSql()}`;
     }
 
     for (const rowApproval of dto.rows) {
@@ -608,6 +612,7 @@ export class ImportsService {
 
     await this.prisma.auditLog.create({
       data: {
+        workspace: currentWorkspace(),
         action: 'IMPORT',
         entityType: 'InventoryImport',
         entityId: importId,

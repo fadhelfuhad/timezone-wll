@@ -3,6 +3,7 @@ import { AuditAction, Prisma } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { currentWorkspace } from '../common/workspace/workspace';
 import { CreateUserDto } from './dto/create-user.dto';
 import { QueryUsersDto } from './dto/query-users.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -17,7 +18,8 @@ export class UsersService {
     const { page = 1, limit = 20, search, role, isActive } = query;
     const skip = (page - 1) * limit;
 
-    const where: Prisma.UserWhereInput = {};
+    // Only accounts in the caller's workspace (the guest account never shows to the company).
+    const where: Prisma.UserWhereInput = { workspace: currentWorkspace() };
 
     if (search) {
       where.OR = [
@@ -64,9 +66,10 @@ export class UsersService {
     };
   }
 
+  // Scoped to the caller's workspace; update() and remove() go through here first.
   async findOne(id: string) {
     const user = await this.prisma.user.findUnique({
-      where: { id },
+      where: { id, workspace: currentWorkspace() },
       select: {
         id: true,
         firstName: true,
@@ -99,6 +102,7 @@ export class UsersService {
 
     const user = await this.prisma.user.create({
       data: {
+        workspace: currentWorkspace(),
         firstName: dto.firstName,
         lastName: dto.lastName,
         email: dto.email.toLowerCase().trim(),
@@ -119,6 +123,7 @@ export class UsersService {
 
     await this.prisma.auditLog.create({
       data: {
+        workspace: currentWorkspace(),
         action: AuditAction.CREATE,
         entityType: 'User',
         entityId: user.id,
@@ -168,6 +173,7 @@ export class UsersService {
 
     await this.prisma.auditLog.create({
       data: {
+        workspace: currentWorkspace(),
         action: AuditAction.UPDATE,
         entityType: 'User',
         entityId: id,
@@ -213,6 +219,7 @@ export class UsersService {
 
     await this.prisma.auditLog.create({
       data: {
+        workspace: currentWorkspace(),
         action: AuditAction.DELETE,
         entityType: 'User',
         entityId: id,

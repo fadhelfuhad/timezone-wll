@@ -1,4 +1,7 @@
-import { PrismaClient, Role, AuditAction } from "@prisma/client";
+import { PrismaClient, Role, Workspace } from "@prisma/client";
+
+// Same id as the workspaces migration creates.
+const GUEST_USER_ID = "00000000-0000-4000-8000-000000000001";
 import * as bcrypt from "bcrypt";
 
 const prisma = new PrismaClient();
@@ -254,49 +257,72 @@ function generateItems(count: number): ItemSeed[] {
 async function main() {
   console.log("Starting seed...");
 
-  // 1. Clear existing data (order respects FK constraints)
-  console.log("Clearing existing data...");
-  await prisma.auditLog.deleteMany();
-  await prisma.inventoryImportRow.deleteMany();
-  await prisma.inventoryItem.deleteMany();
-  await prisma.inventoryImport.deleteMany();
-  await prisma.user.deleteMany();
+  // 1. Reset the guest demo only. COMPANY data (the real business records) is never
+  //    touched, so this is also safe to re-run to put the demo back to its 600 items.
+  console.log("Clearing the guest demo workspace...");
+  const guestOnly = { workspace: Workspace.GUEST };
+  await prisma.auditLog.deleteMany({ where: guestOnly });
+  await prisma.inventoryImportRow.deleteMany({ where: guestOnly });
+  await prisma.$executeRaw`DELETE FROM "inventory_items" WHERE "workspace" = 'GUEST'`;
+  await prisma.inventoryImport.deleteMany({ where: guestOnly });
   console.log("Cleared.");
 
-  // 2. Create users
-  console.log("Creating users...");
+  // 2. Accounts. Admin and staff are created once (COMPANY) and never overwritten,
+  //    so re-running the seed can't reset a password you've changed.
+  console.log("Ensuring accounts...");
   const SALT_ROUNDS = 10;
 
   // Passwords come from env in production (set to strong random values) and
   // fall back to the documented local defaults for development seeding.
   const adminPlain = process.env["SEED_ADMIN_PASSWORD"] ?? "Admin@123456";
   const staffPlain = process.env["SEED_STAFF_PASSWORD"] ?? "Staff@123456";
-  const adminPassword = await bcrypt.hash(adminPlain, SALT_ROUNDS);
-  const staffPassword = await bcrypt.hash(staffPlain, SALT_ROUNDS);
 
-  const admin = await prisma.user.create({
-    data: {
+  const admin = await prisma.user.upsert({
+    where: { email: "admin@timezone.bh" },
+    update: {},
+    create: {
       email: "admin@timezone.bh",
-      password: adminPassword,
+      password: await bcrypt.hash(adminPlain, SALT_ROUNDS),
       firstName: "Admin",
       lastName: "User",
       role: Role.ADMIN,
       isActive: true,
+      workspace: Workspace.COMPANY,
     },
   });
-  console.log(`  Created admin: ${admin.email} (id: ${admin.id})`);
+  console.log(`  Admin: ${admin.email} (id: ${admin.id})`);
 
-  const staff = await prisma.user.create({
-    data: {
+  const staff = await prisma.user.upsert({
+    where: { email: "staff@timezone.bh" },
+    update: {},
+    create: {
       email: "staff@timezone.bh",
-      password: staffPassword,
+      password: await bcrypt.hash(staffPlain, SALT_ROUNDS),
       firstName: "Staff",
       lastName: "User",
       role: Role.STAFF,
       isActive: true,
+      workspace: Workspace.COMPANY,
     },
   });
-  console.log(`  Created staff: ${staff.email} (id: ${staff.id})`);
+  console.log(`  Staff: ${staff.email} (id: ${staff.id})`);
+
+  // The guest account has no usable password; it signs in through POST /auth/guest.
+  const guest = await prisma.user.upsert({
+    where: { id: GUEST_USER_ID },
+    update: {},
+    create: {
+      id: GUEST_USER_ID,
+      email: "guest@demo.timezone.local",
+      password: "!guest-no-password",
+      firstName: "Guest",
+      lastName: "Visitor",
+      role: Role.ADMIN,
+      isActive: true,
+      workspace: Workspace.GUEST,
+    },
+  });
+  console.log(`  Guest: ${guest.email} (id: ${guest.id})`);
 
   // 3. Generate 600 inventory items
   console.log("Generating 600 inventory items...");
@@ -308,7 +334,6 @@ async function main() {
   for (let i = 0; i < itemSeeds.length; i += BATCH_SIZE) {
     const batch = itemSeeds.slice(i, i + BATCH_SIZE);
 
-    // Alternate creator between admin and staff for variety
     await prisma.$transaction(
       batch.map((item) =>
         prisma.inventoryItem.create({
@@ -327,7 +352,8 @@ async function main() {
             dateAdded: item.dateAdded,
             supplier: item.supplier,
             notes: item.notes ?? undefined,
-            createdById: Math.random() > 0.3 ? admin.id : staff.id,
+            createdById: guest.id,
+            workspace: Workspace.GUEST,
             isDeleted: false,
           },
         })
@@ -338,32 +364,8 @@ async function main() {
     console.log(`  ${created}/600 items created...`);
   }
 
-  // 4. Seed a couple of audit log entries for good measure
-  console.log("Creating audit log entries for seeded users...");
-
-  await prisma.auditLog.createMany({
-    data: [
-      {
-        action: AuditAction.LOGIN,
-        entityType: "User",
-        entityId: admin.id,
-        description: "Seed: admin initial login placeholder",
-        userId: admin.id,
-      },
-      {
-        action: AuditAction.LOGIN,
-        entityType: "User",
-        entityId: staff.id,
-        description: "Seed: staff initial login placeholder",
-        userId: staff.id,
-      },
-    ],
-  });
-
   console.log("Seed completed successfully.");
-  console.log(`  Users:           2`);
-  console.log(`  Inventory items: ${created}`);
-  console.log(`  Audit logs:      2`);
+  console.log(`  Guest demo items: ${created} (company data untouched)`);
 }
 
 main()

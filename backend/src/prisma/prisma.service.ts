@@ -1,6 +1,21 @@
-import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  OnModuleInit,
+  OnModuleDestroy,
+  Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaClient, Prisma } from '@prisma/client';
+
+import { workspaceContext } from '../common/workspace/workspace';
+
+// Tables whose rows belong to a workspace. Every query on them is scoped below.
+const SCOPED_MODELS = new Set([
+  'InventoryItem',
+  'InventoryImport',
+  'InventoryImportRow',
+  'AuditLog',
+]);
 
 @Injectable()
 export class PrismaService
@@ -30,7 +45,10 @@ export class PrismaService
   }
 
   async onModuleInit(): Promise<void> {
-    const nodeEnv = this.configService.get<string>('app.nodeEnv', 'development');
+    const nodeEnv = this.configService.get<string>(
+      'app.nodeEnv',
+      'development',
+    );
 
     // Query logging in development
     if (nodeEnv === 'development') {
@@ -65,6 +83,8 @@ export class PrismaService
       },
     );
 
+    // Workspace scoping first, so nothing below it can see another workspace's rows.
+    this.$use(this.workspaceMiddleware());
     // Register soft-delete middleware for InventoryItem
     this.$use(this.softDeleteMiddleware());
 
@@ -75,6 +95,72 @@ export class PrismaService
   async onModuleDestroy(): Promise<void> {
     await this.$disconnect();
     this.logger.log('Database disconnected');
+  }
+
+  /**
+   * Keeps every workspace's data separate. For the scoped tables it:
+   * - adds `workspace = <current>` to the where clause of every read, update and delete,
+   *   so guests can never read or change COMPANY rows (and vice versa);
+   * - stamps new rows with the current workspace and refuses rows that name another one;
+   * - never lets an update move a row to a different workspace.
+   * The workspace comes from the signed-in user (see WorkspaceInterceptor). With no
+   * workspace it fails closed: reads throw, and creates must name their workspace
+   * explicitly (only sign-in audit entries do this, before a session exists).
+   * Raw SQL bypasses middleware, so raw queries add `workspaceSql()` themselves.
+   */
+  private workspaceMiddleware(): Prisma.Middleware {
+    return async (params, next) => {
+      if (!params.model || !SCOPED_MODELS.has(params.model)) {
+        return next(params);
+      }
+      const workspace = workspaceContext.getStore()?.workspace;
+      const args = (params.args ??= {});
+
+      const stamp = (data: Record<string, unknown>) => {
+        if (workspace && data.workspace && data.workspace !== workspace) {
+          throw new Error(
+            `Refusing to write a ${params.model} into another workspace`,
+          );
+        }
+        if (!workspace && !data.workspace) {
+          throw new Error(
+            `Refusing to create a ${params.model} without a workspace`,
+          );
+        }
+        return { ...data, workspace: workspace ?? data.workspace };
+      };
+      const unmoved = (data?: Record<string, unknown>) => {
+        if (!data) return data;
+        const rest = { ...data };
+        delete rest.workspace;
+        return rest;
+      };
+
+      if (params.action === 'create') {
+        args.data = stamp(args.data ?? {});
+        return next(params);
+      }
+      if (params.action === 'createMany') {
+        args.data = Array.isArray(args.data)
+          ? args.data.map(stamp)
+          : stamp(args.data ?? {});
+        return next(params);
+      }
+
+      if (!workspace) {
+        throw new Error(
+          `Refusing an unscoped ${params.action} on ${params.model}`,
+        );
+      }
+      args.where = { ...(args.where ?? {}), workspace };
+      if (params.action === 'upsert') {
+        args.create = stamp(args.create ?? {});
+        args.update = unmoved(args.update);
+      } else if ('data' in args) {
+        args.data = unmoved(args.data);
+      }
+      return next(params);
+    };
   }
 
   /**

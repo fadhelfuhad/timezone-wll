@@ -22,6 +22,7 @@ import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { NoGuestGuard } from '../common/workspace/workspace';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -39,6 +40,15 @@ export class AuthController {
     return this.authService.login(loginDto);
   }
 
+  @Post('guest')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Open the guest demo (its own workspace, never the company data)' })
+  @ApiResponse({ status: 200, description: 'Returns tokens for the guest demo account' })
+  async guest() {
+    return this.authService.guestLogin();
+  }
+
   @Post('logout')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
@@ -46,8 +56,8 @@ export class AuthController {
   @ApiOperation({ summary: 'Log out the current user' })
   @ApiResponse({ status: 204, description: 'Logout successful' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  async logout(@CurrentUser('id') userId: string): Promise<void> {
-    await this.authService.logout(userId);
+  async logout(@CurrentUser() user: User): Promise<void> {
+    await this.authService.logout(user);
   }
 
   @Post('refresh')
@@ -61,7 +71,7 @@ export class AuthController {
   }
 
   @Post('change-password')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, NoGuestGuard)
   // Limit password-change attempts to blunt current-password guessing.
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @HttpCode(HttpStatus.OK)
